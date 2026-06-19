@@ -4,8 +4,10 @@ Async Python client for the Instagram Bot API — register handlers, call `run_p
 
 ## Install
 ```bash
-pip install -e .
+pip install social-media-automations
 ```
+
+For local development from a clone: `pip install -e ".[dev]"`
 
 ## Quickstart
 ```python
