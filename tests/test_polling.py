@@ -88,6 +88,60 @@ async def test_5xx_backs_off_then_continues(monkeypatch):
     assert sleeps and sleeps[0] == 1   # backed off ~1s after the 503
 
 
+async def test_4xx_is_fatal_and_stops(monkeypatch):
+    monkeypatch.setattr(asyncio, "sleep", _noop_sleep)
+    bot = Bot("ak_x")
+    bot.client = FakeClient([ApiError(400, "bad request")])
+    await bot._run_polling()           # returns without looping forever
+    assert bot.client.closed is True
+
+
+async def test_429_is_not_fatal_and_keeps_going(monkeypatch):
+    monkeypatch.setattr(asyncio, "sleep", _noop_sleep)
+    bot = Bot("ak_x")
+    fake = FakeClient([ApiError(429, "slow down"), [upd(1)]])
+    bot.client = fake
+    seen = []
+
+    @bot.on_message()
+    async def h(msg, ctx):
+        seen.append(msg.text)
+        bot.stop()
+
+    await bot._run_polling()
+    assert len(fake.calls) == 2        # retried after the 429 instead of stopping
+    assert seen == ["hi"]              # and went on to process the next update
+
+
+async def test_survives_redeploy_with_quiet_logs_and_no_loss(monkeypatch, caplog):
+    # Simulate a backend redeploy: a couple of gateway errors, then it's back and
+    # returns the update that was queued (durably) during the downtime.
+    monkeypatch.setattr(asyncio, "sleep", _noop_sleep)
+    bot = Bot("ak_x")
+    fake = FakeClient([ApiError(502, "<html><title>502</title></html>"),
+                       ApiError(502, "<html><title>502</title></html>"),
+                       [upd(1, "queued-during-deploy")]])
+    bot.client = fake
+    seen = []
+
+    @bot.on_message()
+    async def h(msg, ctx):
+        seen.append(msg.text)
+        bot.stop()
+
+    with caplog.at_level("INFO", logger="social_media_automations"):
+        await bot._run_polling()
+
+    # The update queued during the outage is delivered once the backend returns.
+    assert seen == ["queued-during-deploy"]
+    msgs = [r.getMessage() for r in caplog.records]
+    # Exactly one "unavailable" line for the whole outage, and one "reconnected".
+    assert sum("backend unavailable" in m for m in msgs) == 1
+    assert any("reconnected" in m for m in msgs)
+    # No raw HTML ever reached the logs.
+    assert not any("<html" in m or "<title" in m for m in msgs)
+
+
 class HangingClient:
     """Simulates a getUpdates long-poll that never returns on its own — only
     cancellation (stop()) can interrupt it."""

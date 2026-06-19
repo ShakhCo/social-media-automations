@@ -113,6 +113,7 @@ class Bot:
         offset = 0
         backoff = 0
         started = False
+        degraded = False  # True while we're riding out a backend outage / redeploy
         try:
             while not self._stop:
                 try:
@@ -125,6 +126,12 @@ class Bot:
                     if not started:
                         started = True
                         self._log_started()
+                    if degraded:
+                        # We rode out an outage (e.g. a backend redeploy). The server
+                        # keeps the update queue durably, so this poll returns anything
+                        # that arrived while it was down — nothing was lost.
+                        logger.info("● reconnected to backend")
+                        degraded = False
                     backoff = 0
                 except asyncio.CancelledError:
                     break  # stop() cancelled the in-flight poll (Ctrl+C)
@@ -133,15 +140,28 @@ class Bot:
                     break
                 except (httpx.HTTPError, ApiError) as e:
                     status = getattr(e, "status", None)
-                    if isinstance(e, ApiError) and status is not None and status < 500:
+                    # A genuine client error (bad request, blocked) is fatal — stop.
+                    # But 408/429 are transient, and anything >= 500 means the backend
+                    # is down or redeploying, so we ride it out and reconnect.
+                    fatal = (
+                        isinstance(e, ApiError)
+                        and status is not None
+                        and status < 500
+                        and status not in (408, 429)
+                    )
+                    if fatal:
                         logger.error("✗ request rejected (%s) — stopping: %s", status, e)
                         break
-                    delay = min(2 ** backoff, 30)
+                    # Reconnect quickly (cap at 5s) so a brief redeploy gap is barely felt,
+                    # and stay quiet: one line when the outage starts, one when it clears.
+                    delay = min(2 ** backoff, 5)
                     backoff += 1
-                    # Keep this to a single clean line — never dump a server HTML
-                    # error page (e.g. a Cloudflare 502) into the user's console.
                     reason = f"HTTP {status}" if status is not None else type(e).__name__
-                    logger.warning("polling error (%s) — retrying in %ss", reason, delay)
+                    if not degraded:
+                        logger.warning("● backend unavailable (%s) — reconnecting…", reason)
+                        degraded = True
+                    else:
+                        logger.debug("still unavailable (%s); retrying in %ss", reason, delay)
                     await asyncio.sleep(delay)
         finally:
             self._poll_task = None
