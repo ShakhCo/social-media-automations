@@ -138,7 +138,10 @@ class Bot:
                         break
                     delay = min(2 ** backoff, 30)
                     backoff += 1
-                    logger.warning("transient error (%s); retrying in %ss", e, delay)
+                    # Keep this to a single clean line — never dump a server HTML
+                    # error page (e.g. a Cloudflare 502) into the user's console.
+                    reason = f"HTTP {status}" if status is not None else type(e).__name__
+                    logger.warning("polling error (%s) — retrying in %ss", reason, delay)
                     await asyncio.sleep(delay)
         finally:
             self._poll_task = None
