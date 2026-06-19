@@ -25,10 +25,9 @@ async def price(msg, ctx):
 async def on_comment(c, ctx):
     await ctx.reply_comment("Thanks!")
 
-@app.on_postback()
+@app.on_postback(payload="book")  # exact payload; or regex="..."
 async def on_btn(pb, ctx):
-    if pb.payload == "book":
-        await ctx.reply("Let's get you booked!")
+    await ctx.reply("Let's get you booked!")
 
 app.run_polling()
 ```
@@ -36,7 +35,7 @@ app.run_polling()
 ## Handler reference
 - `@app.on_message(text=None, regex=None)` — DMs. `text` = case-insensitive substring; `regex` = `re.search`; pass at most one.
 - `@app.on_comment()` — public comments.
-- `@app.on_postback()` — button/ice-breaker taps (`pb.payload`).
+- `@app.on_postback(payload=None, regex=None)` — button/ice-breaker taps (`pb.payload`). `payload` = exact match; `regex` = `re.search`; pass at most one.
 
 Handlers are `async def handler(obj, ctx)`. First matching handler wins.
 

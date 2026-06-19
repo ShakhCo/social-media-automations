@@ -26,10 +26,9 @@ async def thank(comment, ctx):
     await ctx.reply_comment("Thanks! 🙌")
 
 
-@app.on_postback()
-async def button(pb, ctx):
-    if pb.payload == "book":
-        await ctx.reply("Let's get you booked!")
+@app.on_postback(payload="book")
+async def book_button(pb, ctx):
+    await ctx.reply("Let's get you booked!")
 
 
 if __name__ == "__main__":

@@ -11,7 +11,7 @@ import httpx
 from .client import ApiClient, DEFAULT_BASE_URL
 from .context import Context
 from .errors import ApiError, AuthError
-from .filters import make_text_filter
+from .filters import make_payload_filter, make_text_filter
 from .models import Update
 
 logger = logging.getLogger("social_media_automations")
@@ -42,9 +42,10 @@ class Bot:
             return fn
         return deco
 
-    def on_postback(self) -> Callable:
+    def on_postback(self, payload: Optional[str] = None, regex: Optional[str] = None) -> Callable:
+        flt = make_payload_filter(payload, regex)
         def deco(fn: Callable) -> Callable:
-            self._handlers.append(("postback", lambda s: True, fn))
+            self._handlers.append(("postback", flt, fn))
             return fn
         return deco
 
