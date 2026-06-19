@@ -86,3 +86,41 @@ async def test_5xx_backs_off_then_continues(monkeypatch):
 
     await bot._run_polling()
     assert sleeps and sleeps[0] == 1   # backed off ~1s after the 503
+
+
+class HangingClient:
+    """Simulates a getUpdates long-poll that never returns on its own — only
+    cancellation (stop()) can interrupt it."""
+    def __init__(self):
+        self.closed = False
+        self.entered = asyncio.Event()
+    async def get_updates(self, offset, limit, timeout, channel_id):
+        self.entered.set()
+        await asyncio.Event().wait()   # hang until cancelled
+    async def aclose(self):
+        self.closed = True
+
+
+async def test_stop_cancels_inflight_long_poll_immediately():
+    bot = Bot("ak_x")
+    fake = HangingClient()
+    bot.client = fake
+    task = asyncio.ensure_future(bot._run_polling())
+    await fake.entered.wait()                       # we are now blocked in the long-poll
+    bot.stop()                                      # like a SIGINT arriving mid-poll
+    await asyncio.wait_for(task, timeout=1.0)       # must return promptly, not hang
+    assert fake.closed is True                      # client closed cleanly on exit
+
+
+async def test_logs_polling_started_banner(caplog):
+    import logging
+    bot = Bot("ak_live_cb3e53773460ccade")
+    bot.client = FakeClient([[upd(1)]])
+
+    @bot.on_message()
+    async def h(msg, ctx): bot.stop()
+
+    with caplog.at_level(logging.INFO, logger="social_media_automations"):
+        await bot._run_polling()
+    assert "polling started" in caplog.text
+    assert "ak_live_cb3e…" in caplog.text          # masked key shown, full key hidden

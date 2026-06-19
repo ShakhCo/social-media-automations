@@ -19,15 +19,34 @@ logger = logging.getLogger("social_media_automations")
 Handler = Tuple[str, Callable[[str], bool], Callable]
 
 
+def _ensure_logging() -> None:
+    """Give run_polling() readable console output by default, without clobbering a
+    user's own logging config. If neither our logger nor the root has handlers, attach
+    a simple stderr handler; otherwise just make sure our INFO records get through."""
+    root = logging.getLogger()
+    if logger.handlers or root.handlers:
+        if logger.level == logging.NOTSET:
+            logger.setLevel(logging.INFO)
+        return
+    handler = logging.StreamHandler()
+    handler.setFormatter(logging.Formatter("%(asctime)s  %(message)s", datefmt="%H:%M:%S"))
+    logger.addHandler(handler)
+    logger.setLevel(logging.INFO)
+    logger.propagate = False
+
+
 class Bot:
     def __init__(self, account_key: str, base_url: str = DEFAULT_BASE_URL, *,
                  poll_timeout: int = 25, poll_limit: int = 50, channel_id: Optional[str] = None) -> None:
         self.client = ApiClient(account_key, base_url)
+        self._base_url = base_url
         self._poll_timeout = poll_timeout
         self._poll_limit = poll_limit
         self._channel_id = channel_id
         self._handlers: List[Handler] = []
         self._stop = False
+        self._poll_task: Optional["asyncio.Task"] = None
+        self._masked_key = (account_key[:12] + "…") if len(account_key) > 13 else account_key
 
     def on_message(self, text: Optional[str] = None, regex: Optional[str] = None) -> Callable:
         flt = make_text_filter(text, regex)
@@ -60,9 +79,17 @@ class Bot:
 
     def stop(self) -> None:
         self._stop = True
+        # If we're blocked in an in-flight long-poll (the common case when Ctrl+C is
+        # pressed), cancel it so we exit immediately instead of waiting up to poll_timeout.
+        # When stop() is called from inside a handler, it IS the poll task, so we skip the
+        # cancel and let the _stop flag unwind the loop cleanly.
+        task = self._poll_task
+        if task is not None and not task.done() and task is not asyncio.current_task():
+            task.cancel()
 
-    async def _poll_once(self, offset: int) -> int:
-        rows = await self.client.get_updates(offset, self._poll_limit, self._poll_timeout, self._channel_id)
+    async def _poll_once(self, offset: int, timeout: Optional[int] = None) -> int:
+        poll_timeout = self._poll_timeout if timeout is None else timeout
+        rows = await self.client.get_updates(offset, self._poll_limit, poll_timeout, self._channel_id)
         for row in rows:
             uid = row.get("update_id")
             if isinstance(uid, int):
@@ -75,30 +102,53 @@ class Bot:
                 break
         return offset
 
+    def _log_started(self) -> None:
+        logger.info("● social-media-automations — polling started")
+        logger.info(
+            "  account: %s · channels: %s · press Ctrl+C to stop",
+            self._masked_key, self._channel_id or "all bot-mode channels",
+        )
+
     async def _run_polling(self) -> None:
         offset = 0
         backoff = 0
+        started = False
         try:
             while not self._stop:
                 try:
-                    offset = await self._poll_once(offset)
+                    # The first poll uses timeout=0 so a bad key / connectivity problem
+                    # surfaces IMMEDIATELY instead of after a full long-poll window.
+                    self._poll_task = asyncio.ensure_future(
+                        self._poll_once(offset, timeout=0 if not started else None)
+                    )
+                    offset = await self._poll_task
+                    if not started:
+                        started = True
+                        self._log_started()
                     backoff = 0
+                except asyncio.CancelledError:
+                    break  # stop() cancelled the in-flight poll (Ctrl+C)
                 except AuthError:
-                    logger.error("invalid Account Key (401) — stopping")
+                    logger.error("✗ invalid Account Key — check your key and try again")
                     break
                 except (httpx.HTTPError, ApiError) as e:
                     status = getattr(e, "status", None)
                     if isinstance(e, ApiError) and status is not None and status < 500:
-                        logger.error("client error %s — stopping: %s", status, e)
+                        logger.error("✗ request rejected (%s) — stopping: %s", status, e)
                         break
                     delay = min(2 ** backoff, 30)
                     backoff += 1
                     logger.warning("transient error (%s); retrying in %ss", e, delay)
                     await asyncio.sleep(delay)
         finally:
+            self._poll_task = None
             await self.client.aclose()
+            if started:
+                logger.info("● stopped")
 
     def run_polling(self) -> None:
+        _ensure_logging()
+
         async def _main() -> None:
             loop = asyncio.get_running_loop()
             for sig in (signal.SIGINT, signal.SIGTERM):
