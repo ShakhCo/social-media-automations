@@ -6,8 +6,28 @@ build-backend = "hatchling.build"
 name = "social-media-automations"
 version = "0.1.0"
 description = "Async Python SDK for the social-media-automations Instagram Bot API"
+readme = "README.md"
 requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [{ name = "ShakhCo", email = "shakhzodbek.me@gmail.com" }]
+keywords = ["instagram", "bot", "sdk", "async", "automation", "messaging"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Framework :: AsyncIO",
+    "Topic :: Communications :: Chat",
+]
 dependencies = ["httpx>=0.24"]
+
+[project.urls]
+Homepage = "https://github.com/ShakhCo/social-media-automations"
+Repository = "https://github.com/ShakhCo/social-media-automations"
 
 [project.optional-dependencies]
 dev = ["pytest>=7", "pytest-asyncio>=0.21", "respx>=0.20"]
