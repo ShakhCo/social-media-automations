@@ -12,24 +12,24 @@ app = Bot(account_key=os.environ["SMA_KEY"])
 
 @app.on_message(text="price")
 async def price(msg, ctx):
-    await ctx.reply("Yakka: 72 000 so'm/oy. Jamoa: 49 500 so'm/a'zo/oy.")
+    await ctx.reply("Solo: $6/mo. Team: $4/member/mo.")
 
 
 @app.on_message()
 async def greet(msg, ctx):
-    name = msg.from_user.username or "do'st"
-    await ctx.reply(f"Salom, {name}! Nima bilan yordam beray?")
+    name = msg.from_user.username or "friend"
+    await ctx.reply(f"Hi {name}! How can I help?")
 
 
 @app.on_comment()
 async def thank(comment, ctx):
-    await ctx.reply_comment("Rahmat! 🙌")
+    await ctx.reply_comment("Thanks! 🙌")
 
 
 @app.on_postback()
 async def button(pb, ctx):
     if pb.payload == "book":
-        await ctx.reply("Keling, band qilamiz!")
+        await ctx.reply("Let's get you booked!")
 
 
 if __name__ == "__main__":

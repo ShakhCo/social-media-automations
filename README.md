@@ -15,20 +15,20 @@ app = Bot(account_key="ak_...")   # your Account Key
 
 @app.on_message()
 async def on_dm(msg, ctx):
-    await ctx.reply(f"Salom {msg.from_user.username}!")
+    await ctx.reply(f"Hi {msg.from_user.username}!")
 
 @app.on_message(text="price")     # case-insensitive substring; or regex="..."
 async def price(msg, ctx):
-    await ctx.reply("72 000 so'm/oy")
+    await ctx.reply("$6/mo")
 
 @app.on_comment()
 async def on_comment(c, ctx):
-    await ctx.reply_comment("Rahmat!")
+    await ctx.reply_comment("Thanks!")
 
 @app.on_postback()
 async def on_btn(pb, ctx):
     if pb.payload == "book":
-        await ctx.reply("Keling, band qilamiz!")
+        await ctx.reply("Let's get you booked!")
 
 app.run_polling()
 ```
