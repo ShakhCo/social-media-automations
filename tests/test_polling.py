@@ -17,7 +17,7 @@ class FakeClient:
         self.batches = list(batches)      # list of (result-or-exception)
         self.calls = []                   # offsets requested
         self.closed = False
-    async def get_updates(self, offset, limit, timeout, channel_id):
+    async def get_updates(self, offset, limit, timeout, channel_ids=None):
         self.calls.append(offset)
         if not self.batches:
             return []
@@ -148,7 +148,7 @@ class HangingClient:
     def __init__(self):
         self.closed = False
         self.entered = asyncio.Event()
-    async def get_updates(self, offset, limit, timeout, channel_id):
+    async def get_updates(self, offset, limit, timeout, channel_ids=None):
         self.entered.set()
         await asyncio.Event().wait()   # hang until cancelled
     async def aclose(self):
