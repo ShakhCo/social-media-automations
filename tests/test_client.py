@@ -14,13 +14,13 @@ async def test_get_updates_sends_key_and_params_returns_result():
         return_value=httpx.Response(200, json={"result": [{"update_id": 1}]})
     )
     c = ApiClient("ak_x")
-    out = await c.get_updates(offset=5, limit=50, timeout=25, channel_id="ch-1")
+    out = await c.get_updates(offset=5, limit=50, timeout=25, channel_ids=["ch-1"])
     await c.aclose()
     assert out == [{"update_id": 1}]
     req = route.calls.last.request
     assert req.headers["x-api-key"] == "ak_x"
     assert req.url.params["offset"] == "5"
-    assert req.url.params["channel_id"] == "ch-1"
+    assert req.url.params["channel_ids"] == "ch-1"
 
 
 @respx.mock
@@ -29,9 +29,20 @@ async def test_get_updates_omits_channel_id_when_none():
         return_value=httpx.Response(200, json={"result": []})
     )
     c = ApiClient("ak_x")
-    await c.get_updates(offset=0, limit=50, timeout=0, channel_id=None)
+    await c.get_updates(offset=0, limit=50, timeout=0, channel_ids=None)
     await c.aclose()
-    assert "channel_id" not in route.calls.last.request.url.params
+    assert "channel_ids" not in route.calls.last.request.url.params
+
+
+@respx.mock
+async def test_get_updates_joins_channel_ids():
+    route = respx.get(f"{BASE}/bot/v1/getUpdates").mock(
+        return_value=httpx.Response(200, json={"result": []})
+    )
+    c = ApiClient("ak_x")
+    await c.get_updates(offset=0, limit=50, timeout=0, channel_ids=["ch-1", "ch-2"])
+    await c.aclose()
+    assert route.calls.last.request.url.params["channel_ids"] == "ch-1,ch-2"
 
 
 @respx.mock

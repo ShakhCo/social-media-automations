@@ -26,10 +26,10 @@ class ApiClient:
             raise AuthError(401, resp.text)
         raise ApiError(resp.status_code, resp.text)
 
-    async def get_updates(self, offset: int, limit: int, timeout: int, channel_id: Optional[str]) -> list:
+    async def get_updates(self, offset: int, limit: int, timeout: int, channel_ids: Optional[list] = None) -> list:
         params = {"offset": offset, "limit": limit, "timeout": timeout}
-        if channel_id is not None:
-            params["channel_id"] = channel_id
+        if channel_ids:
+            params["channel_ids"] = ",".join(channel_ids)
         # Read timeout must outlast the server long-poll window.
         resp = await self._http.get("/bot/v1/getUpdates", params=params, timeout=self._timeout + timeout)
         self._check(resp)

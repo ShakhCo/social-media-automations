@@ -89,7 +89,7 @@ class Bot:
 
     async def _poll_once(self, offset: int, timeout: Optional[int] = None) -> int:
         poll_timeout = self._poll_timeout if timeout is None else timeout
-        rows = await self.client.get_updates(offset, self._poll_limit, poll_timeout, self._channel_id)
+        rows = await self.client.get_updates(offset, self._poll_limit, poll_timeout, [self._channel_id] if self._channel_id else None)
         for row in rows:
             uid = row.get("update_id")
             if isinstance(uid, int):
