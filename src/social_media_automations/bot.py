@@ -37,12 +37,17 @@ def _ensure_logging() -> None:
 
 class Bot:
     def __init__(self, account_key: str, base_url: str = DEFAULT_BASE_URL, *,
-                 poll_timeout: int = 25, poll_limit: int = 50, channel_id: Optional[str] = None) -> None:
+                 poll_timeout: int = 25, poll_limit: int = 50,
+                 channel_id: Optional[str] = None,
+                 channel_ids: Optional[List[str]] = None) -> None:
         self.client = ApiClient(account_key, base_url)
         self._base_url = base_url
         self._poll_timeout = poll_timeout
         self._poll_limit = poll_limit
-        self._channel_id = channel_id
+        ids = list(channel_ids or [])
+        if channel_id:
+            ids.append(channel_id)
+        self._channel_ids: Optional[List[str]] = ids or None
         self._handlers: List[Handler] = []
         self._stop = False
         self._poll_task: Optional["asyncio.Task"] = None
@@ -89,7 +94,7 @@ class Bot:
 
     async def _poll_once(self, offset: int, timeout: Optional[int] = None) -> int:
         poll_timeout = self._poll_timeout if timeout is None else timeout
-        rows = await self.client.get_updates(offset, self._poll_limit, poll_timeout, self._channel_id)
+        rows = await self.client.get_updates(offset, self._poll_limit, poll_timeout, self._channel_ids)
         for row in rows:
             uid = row.get("update_id")
             if isinstance(uid, int):
@@ -106,7 +111,7 @@ class Bot:
         logger.info("● social-media-automations — polling started")
         logger.info(
             "  account: %s · channels: %s · press Ctrl+C to stop",
-            self._masked_key, self._channel_id or "all bot-mode channels",
+            self._masked_key, ", ".join(self._channel_ids) if self._channel_ids else "all bot-mode channels",
         )
 
     async def _run_polling(self) -> None:

@@ -13,7 +13,10 @@ For local development from a clone: `pip install -e ".[dev]"`
 ```python
 from social_media_automations import Bot
 
-app = Bot(account_key="ak_...")   # your Account Key
+app = Bot(account_key="ak_...")   # your Account Key — all bot-mode channels
+
+# ...or scope updates to specific channels (server-side filter):
+app = Bot(account_key="ak_...", channel_ids=["ch-1", "ch-2"])
 
 @app.on_message()
 async def on_dm(msg, ctx):
