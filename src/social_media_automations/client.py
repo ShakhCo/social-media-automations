@@ -45,6 +45,12 @@ class ApiClient:
         )
         self._check(resp)
 
+    async def send_action(self, channel_id: str, to: str, action: str) -> None:
+        resp = await self._http.post(
+            "/bot/v1/sendAction", json={"channel_id": channel_id, "to": to, "action": action}
+        )
+        self._check(resp)
+
     async def get_me(self, channel_id: str) -> dict:
         resp = await self._http.get("/bot/v1/getMe", params={"channel_id": channel_id})
         self._check(resp)

@@ -84,3 +84,14 @@ async def test_500_raises_api_error():
         await c.send_message("ch-1", "to", "t")
     await c.aclose()
     assert ei.value.status == 500
+
+
+@respx.mock
+async def test_send_action_posts_body():
+    route = respx.post(f"{BASE}/bot/v1/sendAction").mock(return_value=httpx.Response(201, json={"ok": True}))
+    c = ApiClient("ak_x")
+    await c.send_action(channel_id="ch-1", to="igsid-9", action="typing_on")
+    await c.aclose()
+    import json
+    body = json.loads(route.calls.last.request.content)
+    assert body == {"channel_id": "ch-1", "to": "igsid-9", "action": "typing_on"}
